@@ -1,3 +1,4 @@
+// src/App.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Bell,
@@ -45,7 +46,6 @@ import { useAuth, AuthProvider } from './contexts/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Login } from './pages/Login';
 import { Signup } from './pages/Signup';
-import { API_BASE_URL } from './config';
 
 // --- Types ---
 interface Notice {
@@ -180,7 +180,7 @@ const NoticeFeed = ({ searchQuery }: { searchQuery: string }) => {
   const [isExtracting, setIsExtracting] = useState(false);
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/notices`)
+    fetch('/api/notices')
       .then(res => res.ok ? res.json() : [])
       .then(data => {
         if (Array.isArray(data)) {
@@ -198,7 +198,7 @@ const NoticeFeed = ({ searchQuery }: { searchQuery: string }) => {
     setSelectedNotice(notice);
     setIsExtracting(true);
     setExtractedDeadline(null);
-    fetch(`${API_BASE_URL}/api/notices/${notice.id}`);
+    fetch(`/api/notices/${notice.id}`);
     const deadline = await extractDeadline(notice.content);
     setExtractedDeadline(deadline);
     setIsExtracting(false);
@@ -432,7 +432,7 @@ const ReportIssue = ({ userEmail }: { userEmail: string }) => {
     formDataToSend.append('priority', aiResult.priority);
     if (photo) formDataToSend.append('photo', photo);
 
-    const res = await fetch(`${API_BASE_URL}/api/issues`, {
+    const res = await fetch('/api/issues', {
       method: 'POST',
       body: formDataToSend,
     });
@@ -591,7 +591,7 @@ const MyIssues = ({ userEmail }: { userEmail: string }) => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/issues/student/${userEmail}`)
+    fetch(`/api/issues/student/${userEmail}`)
       .then(res => res.ok ? res.json() : [])
       .then(data => {
         if (Array.isArray(data)) {
@@ -604,9 +604,8 @@ const MyIssues = ({ userEmail }: { userEmail: string }) => {
         setLoading(false);
       });
 
-    const wsProtocol = API_BASE_URL.startsWith('https') ? 'wss' : 'ws';
-    const wsUrl = API_BASE_URL ? API_BASE_URL.replace(/^https?/, wsProtocol) : `${wsProtocol}://${window.location.host}`;
-    const socket = new WebSocket(wsUrl);
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const socket = new WebSocket(`${protocol}//${window.location.host}`);
     socket.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
@@ -747,7 +746,7 @@ const SmartCalendar = () => {
 
   useEffect(() => {
     const fetchEvents = async () => {
-      const res = await fetch(`${API_BASE_URL}/api/notices`);
+      const res = await fetch('/api/notices');
       const notices = await res.json();
       const extracted = await Promise.all(notices.slice(0, 5).map(async (n: Notice) => {
         const deadline = await extractDeadline(n.content);
@@ -821,13 +820,13 @@ const AdminDashboard = () => {
   const [categoryDist, setCategoryDist] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/analytics/summary`)
+    fetch('/api/analytics/summary')
       .then(res => res.json())
       .then(data => {
         setStats(data);
         setCategoryDist(data.categoryDist);
       });
-    fetch(`${API_BASE_URL}/api/issues`)
+    fetch('/api/issues')
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
@@ -922,7 +921,7 @@ const IssueManagement = () => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/issues`)
+    fetch('/api/issues')
       .then(res => res.ok ? res.json() : [])
       .then(data => {
         if (Array.isArray(data)) {
@@ -931,9 +930,8 @@ const IssueManagement = () => {
       })
       .catch(err => console.error("Issue management fetch error:", err));
 
-    const wsProtocol = API_BASE_URL.startsWith('https') ? 'wss' : 'ws';
-    const wsUrl = API_BASE_URL ? API_BASE_URL.replace(/^https?/, wsProtocol) : `${wsProtocol}://${window.location.host}`;
-    const socket = new WebSocket(wsUrl);
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const socket = new WebSocket(`${protocol}//${window.location.host}`);
     socket.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
@@ -950,7 +948,7 @@ const IssueManagement = () => {
   }, []);
 
   const updateStatus = async (id: number, status: string) => {
-    await fetch(`${API_BASE_URL}/api/issues/${id}`, {
+    await fetch(`/api/issues/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status })
@@ -1136,7 +1134,7 @@ const NoticeManagement = () => {
   }, []);
 
   const fetchNotices = async () => {
-    const res = await fetch(`${API_BASE_URL}/api/notices`);
+    const res = await fetch('/api/notices');
     const data = await res.json();
     setNotices(data);
   };
@@ -1144,8 +1142,8 @@ const NoticeManagement = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const url = editingNotice 
-      ? `${API_BASE_URL}/api/notices/${editingNotice.id}`
-      : `${API_BASE_URL}/api/notices`;
+      ? `/api/notices/${editingNotice.id}`
+      : '/api/notices';
     const method = editingNotice ? 'PUT' : 'POST';
 
     const res = await fetch(url, {
@@ -1176,7 +1174,7 @@ const NoticeManagement = () => {
   };
 
   const handleDelete = async (id: number) => {
-    const res = await fetch(`${API_BASE_URL}/api/notices/${id}`, { method: 'DELETE' });
+    const res = await fetch(`/api/notices/${id}`, { method: 'DELETE' });
     if (res.ok) {
       setNotices(notices.filter(n => n.id !== id));
       setDeleteConfirm(null);
@@ -1376,8 +1374,8 @@ const Chatbot = () => {
 
     try {
       const [faqsRes, noticesRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/faqs`),
-        fetch(`${API_BASE_URL}/api/notices`)
+        fetch('/api/faqs'),
+        fetch('/api/notices')
       ]);
       
       let faqs = [];
@@ -1473,8 +1471,8 @@ const Chatbot = () => {
   );
 };
 
-// --- Auth routes ---
-const AuthRoutes = () => {
+// --- Main App Routes ---
+const AppRoutes = () => {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -1530,7 +1528,7 @@ export default function App() {
   return (
     <Router>
       <AuthProvider>
-        <AuthRoutes />
+        <AppRoutes />
       </AuthProvider>
     </Router>
   );
