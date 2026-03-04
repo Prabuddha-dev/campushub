@@ -108,6 +108,7 @@ async function sendNoticeEmail(notice: any, action: 'created' | 'updated') {
         <p><strong>Department:</strong> ${notice.department || 'All'}</p>
         <p><strong>Branch:</strong> ${notice.branch || 'All'}</p>
         <p><strong>Year:</strong> ${notice.year || 'All'}</p>
+        ${notice.photo_url ? `<p><img src="${notice.photo_url}" alt="Notice Image" style="max-width:100%; height:auto;" /></p>` : ''}
         <hr>
         <p>${notice.content.replace(/\n/g, '<br>')}</p>
         <hr>
@@ -135,6 +136,7 @@ db.exec(`
     department TEXT,
     branch TEXT,
     year TEXT,
+    photo_url TEXT,
     views INTEGER DEFAULT 0,
     date_posted DATETIME DEFAULT CURRENT_TIMESTAMP
   );
@@ -174,13 +176,23 @@ db.exec(`
   );
 `);
 
-// Seed FAQs if empty
+// ==================== SEED FAQS ====================
 const faqCount = db.prepare("SELECT COUNT(*) as count FROM faqs").get() as { count: number };
 if (faqCount.count === 0) {
   const insertFaq = db.prepare("INSERT INTO faqs (question, answer) VALUES (?, ?)");
   insertFaq.run("When is the next semester starting?", "The next semester is scheduled to start on August 15th, 2026.");
   insertFaq.run("How to apply for a scholarship?", "You can apply through the student portal under the 'Scholarships' section before the end of September.");
   insertFaq.run("Where is the main library located?", "The main library is located in Block B, 3rd Floor.");
+  insertFaq.run("How do I change my major?", "Visit the Academic Advising Office in Block A, Room 102, or fill out the online form at portal.campus.edu/major-change.");
+  insertFaq.run("What are the library hours?", "Monday–Friday: 8 AM – 10 PM, Saturday: 10 AM – 6 PM, Sunday: 12 PM – 8 PM.");
+  insertFaq.run("Where is the registrar's office?", "The Registrar's Office is located in Block C, Ground Floor, near the main entrance.");
+  insertFaq.run("How do I request a transcript?", "You can request official transcripts through the student portal under 'Academic Records'.");
+  insertFaq.run("When is the graduation ceremony?", "The annual graduation ceremony is scheduled for May 20th, 2026.");
+  insertFaq.run("How do I apply for on-campus housing?", "Housing applications open on March 1st. Apply via the housing portal at housing.campus.edu.");
+  insertFaq.run("What dining options are available on campus?", "We have two cafeterias, a food court, and several coffee shops. Meal plans can be purchased online.");
+  insertFaq.run("How do I access the campus Wi-Fi?", "Connect to 'CampusWiFi' and use your student credentials to log in.");
+  insertFaq.run("Where can I print documents on campus?", "Printing is available in the library and computer labs. You can add funds to your printing account online.");
+  insertFaq.run("How do I get a student ID card?", "Visit the ID Card Office in Block D with a valid photo ID. New cards are issued within 10 minutes.");
 }
 
 // Seed notices if empty
@@ -225,7 +237,6 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json());
-  // Serve uploaded files statically
   app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
   // ========== Auth Routes ==========
@@ -289,7 +300,7 @@ async function startServer() {
     }
   });
 
-  // ========== Notice Routes ==========
+  // ========== Notice Routes (with photo upload) ==========
   app.get("/api/notices", (req, res) => {
     try {
       const notices = db.prepare("SELECT * FROM notices ORDER BY date_posted DESC").all();
@@ -311,11 +322,21 @@ async function startServer() {
     }
   });
 
-  app.post("/api/notices", (req, res) => {
+  // POST with optional photo
+  app.post("/api/notices", upload.single('photo'), (req, res) => {
     try {
       const { title, content, category, department, branch, year } = req.body;
-      const info = db.prepare("INSERT INTO notices (title, content, category, department, branch, year) VALUES (?, ?, ?, ?, ?, ?)").run(title, content, category, department, branch, year);
-      const newNotice = { id: info.lastInsertRowid, title, content, category, department, branch, year, date_posted: new Date().toISOString() };
+      const photo_url = req.file ? `/uploads/${req.file.filename}` : null;
+      const info = db.prepare(`
+        INSERT INTO notices (title, content, category, department, branch, year, photo_url) 
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(title, content, category, department, branch, year, photo_url);
+      const newNotice = { 
+        id: info.lastInsertRowid, 
+        title, content, category, department, branch, year, photo_url, 
+        date_posted: new Date().toISOString(),
+        views: 0
+      };
       sendNoticeEmail(newNotice, 'created').catch(console.error);
       res.json({ id: info.lastInsertRowid });
     } catch (err) {
@@ -324,15 +345,25 @@ async function startServer() {
     }
   });
 
-  app.put("/api/notices/:id", (req, res) => {
+  // PUT with optional photo
+  app.put("/api/notices/:id", upload.single('photo'), (req, res) => {
     try {
       const { title, content, category, department, branch, year } = req.body;
+      // If new photo uploaded, use it; otherwise keep existing
+      let photo_url = null;
+      if (req.file) {
+        photo_url = `/uploads/${req.file.filename}`;
+      } else {
+        // fetch current photo_url if not provided (we'll keep it)
+        const current = db.prepare("SELECT photo_url FROM notices WHERE id = ?").get(req.params.id) as any;
+        photo_url = current?.photo_url;
+      }
       const stmt = db.prepare(`
         UPDATE notices 
-        SET title = ?, content = ?, category = ?, department = ?, branch = ?, year = ?
+        SET title = ?, content = ?, category = ?, department = ?, branch = ?, year = ?, photo_url = ?
         WHERE id = ?
       `);
-      const info = stmt.run(title, content, category, department, branch, year, req.params.id);
+      const info = stmt.run(title, content, category, department, branch, year, photo_url, req.params.id);
       if (info.changes === 0) {
         return res.status(404).json({ error: 'Notice not found' });
       }
@@ -380,17 +411,13 @@ async function startServer() {
     }
   });
 
-  // POST with file upload
   app.post("/api/issues", upload.single('photo'), (req, res) => {
     try {
       const { student_email, title, description, category, department, location_lat, location_lng, location_name, priority } = req.body;
       const photo_url = req.file ? `/uploads/${req.file.filename}` : null;
-
-      // Validate required fields
       if (!student_email || !title || !description || !category || !department || !location_name || !priority) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
-
       const info = db.prepare(`
         INSERT INTO issues 
         (student_email, title, description, category, department, location_lat, location_lng, location_name, photo_url, priority) 
@@ -401,23 +428,15 @@ async function startServer() {
         location_lng ? parseFloat(location_lng) : null, 
         location_name, photo_url, priority
       );
-
       const newIssue = { 
         id: info.lastInsertRowid, 
-        student_email, 
-        title, 
-        description, 
-        category, 
-        department, 
+        student_email, title, description, category, department, 
         location_lat: location_lat ? parseFloat(location_lat) : null,
         location_lng: location_lng ? parseFloat(location_lng) : null,
-        location_name, 
-        photo_url,
-        priority, 
+        location_name, photo_url, priority, 
         status: 'Pending', 
         created_at: new Date().toISOString() 
       };
-
       broadcast({ type: 'NEW_ISSUE', data: newIssue });
       res.json(newIssue);
     } catch (err) {
@@ -451,7 +470,10 @@ async function startServer() {
         { q: "When is the next semester starting?", count: 45 },
         { q: "How to apply for a scholarship?", count: 32 },
         { q: "Where is the main library located?", count: 28 },
-        { q: "What is the exam schedule?", count: 24 }
+        { q: "What is the exam schedule?", count: 24 },
+        { q: "How do I change my major?", count: 19 },
+        { q: "What are the library hours?", count: 17 },
+        { q: "How do I request a transcript?", count: 15 }
       ];
       res.json({
         totalIssues: totalIssues.count,
