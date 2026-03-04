@@ -19,7 +19,11 @@ import {
   LogOut,
   Menu,
   Map,
-  Filter
+  Filter,
+  User,
+  Mail,
+  Award,
+  BookOpen
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -85,6 +89,60 @@ const getGoogleMapsLink = (lat: number | null, lng: number | null) => {
   return null;
 };
 
+// ========== Profile Popup Component ==========
+const ProfilePopup = ({ user, onClose }: { user: any; onClose: () => void }) => {
+  const popupRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (popupRef.current && !popupRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [onClose]);
+
+  return (
+    <motion.div
+      ref={popupRef}
+      initial={{ opacity: 0, y: -10, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -10, scale: 0.95 }}
+      transition={{ duration: 0.2 }}
+      className="absolute right-0 top-12 w-64 bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-slate-200/50 overflow-hidden z-50"
+    >
+      <div className="p-4 border-b border-slate-100/50">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold">
+            {user?.email?.[0].toUpperCase()}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-slate-900 truncate">{user?.name || user?.email?.split('@')[0]}</p>
+            <p className="text-xs text-slate-500 truncate">{user?.email}</p>
+          </div>
+        </div>
+      </div>
+      <div className="p-3 space-y-2">
+        <div className="flex items-center gap-3 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50/50 rounded-lg">
+          <User size={16} />
+          <span className="capitalize">{user?.role}</span>
+        </div>
+        {user?.department && (
+          <div className="flex items-center gap-3 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50/50 rounded-lg">
+            <BookOpen size={16} />
+            <span>{user.department} • {user?.branch} • {user?.year}</span>
+          </div>
+        )}
+        <div className="flex items-center gap-3 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50/50 rounded-lg">
+          <Mail size={16} />
+          <span className="truncate">{user?.email}</span>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
 // ========== Responsive Sidebar ==========
 const Sidebar = ({ isAdmin, mobileOpen, setMobileOpen }: { isAdmin: boolean; mobileOpen: boolean; setMobileOpen: (open: boolean) => void }) => {
   const location = useLocation();
@@ -106,7 +164,8 @@ const Sidebar = ({ isAdmin, mobileOpen, setMobileOpen }: { isAdmin: boolean; mob
     <div className="h-full flex flex-col bg-white/80 backdrop-blur-xl border-r border-slate-200/50">
       <div className="p-4 md:p-6 border-b border-slate-100/50">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold shadow-md">C</div>
+          {/* Logo image */}
+          <img src="/campushublogo.png" alt="CampusHub" className="h-8 w-auto" />
           <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">CampusHub</h1>
         </div>
       </div>
@@ -187,6 +246,9 @@ const Sidebar = ({ isAdmin, mobileOpen, setMobileOpen }: { isAdmin: boolean; mob
 // ========== Responsive Navbar ==========
 const Navbar = ({ userEmail, onSearch, onMenuClick }: { userEmail: string; onSearch?: (val: string) => void; onMenuClick: () => void }) => {
   const [showMobileSearch, setShowMobileSearch] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const { user } = useAuth();
+  const profileRef = useRef<HTMLDivElement>(null);
 
   return (
     <motion.header
@@ -203,7 +265,8 @@ const Navbar = ({ userEmail, onSearch, onMenuClick }: { userEmail: string; onSea
             <Menu size={24} />
           </button>
           <div className="md:hidden flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold shadow-md">C</div>
+            {/* Mobile logo */}
+            <img src="/campushublogo.png" alt="CampusHub" className="h-8 w-auto" />
             <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">CampusHub</h1>
           </div>
 
@@ -230,14 +293,20 @@ const Navbar = ({ userEmail, onSearch, onMenuClick }: { userEmail: string; onSea
 
           <div className="text-right hidden sm:block">
             <p className="text-sm font-medium text-slate-900">{userEmail.split('@')[0]}</p>
-            <p className="text-xs text-slate-500">Student</p>
+            <p className="text-xs text-slate-500 capitalize">{user?.role || 'Student'}</p>
           </div>
-          <motion.div
-            whileHover={{ scale: 1.1, rotate: 5 }}
-            className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold shadow-md cursor-pointer text-sm md:text-base"
-          >
-            {userEmail[0].toUpperCase()}
-          </motion.div>
+          <div className="relative" ref={profileRef}>
+            <motion.div
+              whileHover={{ scale: 1.1, rotate: 5 }}
+              onClick={() => setShowProfile(!showProfile)}
+              className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold shadow-md cursor-pointer text-sm md:text-base"
+            >
+              {userEmail[0].toUpperCase()}
+            </motion.div>
+            <AnimatePresence>
+              {showProfile && <ProfilePopup user={user} onClose={() => setShowProfile(false)} />}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
 
