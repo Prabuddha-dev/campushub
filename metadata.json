@@ -1,0 +1,5 @@
+{
+  "name": "CampusHub",
+  "description": "Unified Smart Campus Communication & Issue Management System with AI-powered deadline extraction and issue prioritization.",
+  "requestFramePermissions": ["geolocation"]
+}
