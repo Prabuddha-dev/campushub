@@ -349,6 +349,7 @@ const NoticeFeed = ({ searchQuery }: { searchQuery: string }) => {
   const [extractedDeadline, setExtractedDeadline] = useState<any>(null);
   const [isExtracting, setIsExtracting] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedNoticeImage, setSelectedNoticeImage] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/notices')
@@ -610,9 +611,14 @@ const NoticeFeed = ({ searchQuery }: { searchQuery: string }) => {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1 }}
-                    className="mb-4 md:mb-6"
+                    className="mb-4 md:mb-6 cursor-pointer"
+                    onClick={() => setSelectedNoticeImage(selectedNotice.photo_url!)}
                   >
-                    <img src={selectedNotice.photo_url} alt="Notice" className="max-h-48 md:max-h-64 w-full object-cover rounded-xl shadow-md" />
+                    <img
+                      src={selectedNotice.photo_url}
+                      alt="Notice"
+                      className="max-h-48 md:max-h-64 w-full object-cover rounded-xl shadow-md hover:opacity-90 transition-opacity"
+                    />
                   </motion.div>
                 )}
                 <motion.h2
@@ -681,6 +687,37 @@ const NoticeFeed = ({ searchQuery }: { searchQuery: string }) => {
                   )}
                 </motion.div>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Image modal for notice images */}
+      <AnimatePresence>
+        {selectedNoticeImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            onClick={() => setSelectedNoticeImage(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.9 }}
+              transition={{ type: "spring", damping: 20 }}
+              className="relative max-w-4xl max-h-[90vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img src={selectedNoticeImage} alt="Notice full size" className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl" />
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                onClick={() => setSelectedNoticeImage(null)}
+                className="absolute top-2 right-2 p-2 bg-white rounded-full shadow-lg hover:bg-slate-100 transition-colors"
+              >
+                <X size={20} className="md:w-6 md:h-6" />
+              </motion.button>
             </motion.div>
           </motion.div>
         )}
